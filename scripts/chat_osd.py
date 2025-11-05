@@ -246,9 +246,11 @@ for step in range(num_steps):
     # Forward/Backward on rollouts over multiple examples in the dataset
     rewards_list = []
     sequence_lengths = []
+    loss_list = []
     for example_step in range(examples_per_rank):
         # Get one batch corresponding to one example in the training dataset
         sequences_all, inputs_all, targets_all, rewards_all, advantages_all = next(batch_iterator)
+        loss_all = []
         # Evaluate the loss and gradients
         model.train() # ensure the model is in train mode
         # We need one more loop because we can never exceed the device_batch_size
@@ -280,25 +282,32 @@ for step in range(num_steps):
             # We wish to minimize the reverse-KL directly.
             loss = osd_obj
             loss.backward()
+            loss_all.append(loss.item())
             print0(f"Step {step}/{num_steps} | Example step {example_step} | Pass {pass_idx} | loss: {loss.item():.6f} | Average reward: {rewards.mean().item()}")
         # For logging
         rewards_list.append(rewards_all.mean().item())
+        loss_list.append(sum(loss_all) / len(loss_all))
         sequence_lengths.extend(len(seq) for seq in sequences_all)
 
     # A bunch of logging for how the rollouts went this step
     mean_reward = sum(rewards_list) / len(rewards_list)
+    mean_loss = sum(loss_list) / len(loss_list)
     mean_sequence_length = sum(sequence_lengths) / len(sequence_lengths)
     if ddp: # aggregate across ranks
         mean_reward_tensor = torch.tensor(mean_reward, dtype=torch.float, device=device)
+        mean_loss_tensor = torch.tensor(mean_loss, dtype=torch.float, device=device)
         mean_sequence_length_tensor = torch.tensor(mean_sequence_length, dtype=torch.float, device=device)
         dist.all_reduce(mean_reward_tensor, op=dist.ReduceOp.AVG)
+        dist.all_reduce(mean_loss_tensor, op=dist.ReduceOp.AVG)
         dist.all_reduce(mean_sequence_length_tensor, op=dist.ReduceOp.AVG)
         mean_reward = mean_reward_tensor.item()
+        mean_loss = mean_loss_tensor.item()
         mean_sequence_length = mean_sequence_length_tensor.item()
-    print0(f"Step {step}/{num_steps} | Average reward: {mean_reward} | Average sequence length: {mean_sequence_length:.2f}")
+    print0(f"Step {step}/{num_steps} | Average reward: {mean_reward} | Average loss: {mean_loss} | Average sequence length: {mean_sequence_length:.2f}")
     wandb_run.log({
         "step": step,
         "reward": mean_reward,
+        "loss": mean_loss,
         "sequence_length": mean_sequence_length,
     })
 
