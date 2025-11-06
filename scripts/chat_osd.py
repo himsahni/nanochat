@@ -276,7 +276,8 @@ for step in range(num_steps):
             # pg_obj = pg_obj / (num_valid * num_passes * examples_per_rank)
             # Instead of PG objective, we calculate reverse-KL to teacher model
             valid_mask = targets != -1  # (B, T) 
-            osd_obj = (logp[valid_mask] - teacher_logp[valid_mask]).sum()
+            adv = (logp[valid_mask] - teacher_logp[valid_mask]).detach()
+            osd_obj = (logp[valid_mask] * adv).sum()
             # normalize by the number of valid tokens, vocab_size, number of passes, and examples_per_rank
             num_valid = valid_mask.sum().clamp(min=1)
             osd_obj = osd_obj / (num_valid * num_passes * examples_per_rank)
