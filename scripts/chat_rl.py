@@ -31,6 +31,7 @@ from tasks.gsm8k import GSM8K
 # RL hyperparameters
 run = "dummy" # wandb run name
 source = "sft" # mid|sft
+source_model_tag = None
 dtype = "bfloat16"
 device_batch_size = 8 # no forward pass will go above this to not OOM
 examples_per_step = 16 # in total and across all ranks (note: examples, not samples/completions!)
@@ -64,7 +65,7 @@ use_dummy_wandb = run == "dummy" or not master_process
 wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="nanochat-rl", name=run, config=user_config)
 
 # Init model and tokenizer
-model, tokenizer, meta = load_model(source, device, phase="eval")
+model, tokenizer, meta = load_model(source, device, phase="eval", model_tag=source_model_tag)
 engine = Engine(model, tokenizer) # for sampling rollouts
 
 # -----------------------------------------------------------------------------
