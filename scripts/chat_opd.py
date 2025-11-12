@@ -10,10 +10,10 @@ simpler and more similar to just REINFORCE:
 4) Instead of z-score normalization (r - mu)/sigma, only use (r - mu) as the advantage.
 
 1 GPU:
-python -m scripts.chat_osd
+python -m scripts.chat_opd
 
 8 GPUs:
-torchrun --standalone --nproc_per_node=8 -m scripts.chat_osd -- --run=default
+torchrun --standalone --nproc_per_node=8 -m scripts.chat_opd -- --run=default
 """
 
 import os
@@ -64,7 +64,7 @@ autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=dtype)
 
 # wandb logging init
 use_dummy_wandb = run == "dummy" or not master_process
-wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="nanochat-osd", name=run, config=user_config)
+wandb_run = DummyWandb() if use_dummy_wandb else wandb.init(project="nanochat-rl", name=run, config=user_config)
 
 # Load the student and teacher models
 teacher_model, tokenizer, teacher_meta = load_model(teacher_source, device, phase="eval", model_tag=teacher_model_tag)
@@ -269,20 +269,15 @@ for step in range(num_steps):
             # also get logprobs from the teacher model
             with torch.no_grad(), autocast_ctx:
                 teacher_logp = -teacher_model(inputs, targets, loss_reduction='none').view_as(inputs) # (B, T)
-            # # Calculate the PG objective. Note that ignore_index=-1 ensures that invalid tokens have loss 0.
-            # pg_obj = (logp * advantages.unsqueeze(-1)).sum()
-            # # normalize by the number of valid tokens, number of passes, and examples_per_rank
-            # num_valid = (targets >= 0).sum().clamp(min=1)
-            # pg_obj = pg_obj / (num_valid * num_passes * examples_per_rank)
             # Instead of PG objective, we calculate reverse-KL to teacher model
             valid_mask = targets != -1  # (B, T) 
             adv = (logp[valid_mask] - teacher_logp[valid_mask]).detach()
-            osd_obj = (logp[valid_mask] * adv).sum()
+            opd_obj = (logp[valid_mask] * adv).sum()
             # normalize by the number of valid tokens, vocab_size, number of passes, and examples_per_rank
             num_valid = valid_mask.sum().clamp(min=1)
-            osd_obj = osd_obj / (num_valid * num_passes * examples_per_rank)
+            opd_obj = opd_obj / (num_valid * num_passes * examples_per_rank)
             # We wish to minimize the reverse-KL directly.
-            loss = osd_obj
+            loss = opd_obj
             loss.backward()
             loss_all.append(loss.item())
             print0(f"Step {step}/{num_steps} | Example step {example_step} | Pass {pass_idx} | loss: {loss.item():.6f} | Average reward: {rewards.mean().item()}")
@@ -331,7 +326,7 @@ for step in range(num_steps):
         base_dir = get_base_dir()
         depth = model.config.n_layer
         model_tag = f"d{depth}" # base the model tag on the depth of the base model
-        checkpoint_dir = os.path.join(base_dir, "chatosd_checkpoints", model_tag)
+        checkpoint_dir = os.path.join(base_dir, "chatopd_checkpoints", model_tag)
         model_config_kwargs = model.config.__dict__ # slightly naughty, abusing the simplicity of GPTConfig, TODO nicer
         save_checkpoint(
             checkpoint_dir,
@@ -346,7 +341,7 @@ for step in range(num_steps):
 
 # Log to report
 from nanochat.report import get_report
-get_report().log(section="Chat OSD", data=[
+get_report().log(section="Chat OPD", data=[
     user_config, # CLI args
 ])
 

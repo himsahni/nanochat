@@ -201,7 +201,6 @@ EXPECTED_FILES = [
     "chat-evaluation-mid.md",
     "chat-sft.md",
     "chat-evaluation-sft-d20.md",
-    # "chat-evaluation-sft-d32.md",
     "chat-rl.md",
     "chat-evaluation-rl-d32.md",
     "chat-evaluation-rl-d20.md",
