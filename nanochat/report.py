@@ -201,9 +201,11 @@ EXPECTED_FILES = [
     "chat-evaluation-mid.md",
     "chat-sft.md",
     "chat-evaluation-sft-d20.md",
-    "chat-evaluation-sft-d32.md",
+    # "chat-evaluation-sft-d32.md",
     "chat-rl.md",
-    "chat-evaluation-rl.md",
+    "chat-evaluation-rl-d32.md",
+    "chat-evaluation-rl-d20.md",
+    "chat-evaluation-opd-d20.md",
 ]
 # the metrics we're currently interested in
 chat_metrics = ["ARC-Easy", "ARC-Challenge", "MMLU", "GSM8K", "HumanEval", "ChatCORE"]
@@ -306,11 +308,13 @@ class Report:
                 if file_name == "chat-evaluation-mid.md":
                     final_metrics["mid"] = extract(section, chat_metrics)
                 if file_name == "chat-evaluation-sft-d20.md":
-                    final_metrics["sft (d20)"] = extract(section, chat_metrics)
-                if file_name == "chat-evaluation-sft-d32.md":
-                    final_metrics["sft (d32)"] = extract(section, chat_metrics)
-                if file_name == "chat-evaluation-rl.md":
-                    final_metrics["rl"] = extract(section, "GSM8K") # RL only evals GSM8K
+                    final_metrics["sft"] = extract(section, chat_metrics)
+                if file_name == "chat-evaluation-rl-d20.md":
+                    final_metrics["rl (d20)"] = extract(section, "GSM8K") # RL only evals GSM8K
+                if file_name == "chat-evaluation-opd-d20.md":
+                    final_metrics["opd (d20)"] = extract(section, "GSM8K") # RL only evals GSM8K
+                if file_name == "chat-evaluation-rl-d32.md":
+                    final_metrics["rl (d32)"] = extract(section, "GSM8K") # RL only evals GSM8K
                 # append this section of the report
                 out_file.write(section)
                 out_file.write("\n")
@@ -326,9 +330,9 @@ class Report:
             # Custom ordering: CORE first, ChatCORE last, rest in middle
             all_metrics = sorted(all_metrics, key=lambda x: (x != "CORE", x == "ChatCORE", x))
             # Fixed column widths
-            stages = ["base", "mid", "sft (d20)", "sft (d20)", "rl"]
+            stages = ["base", "mid", "sft", "rl (d20)", "opd (d20)", "rl (d32)"]
             metric_width = 15
-            value_width = 8
+            value_width = 10
             # Write table header
             header = f"| {'Metric'.ljust(metric_width)} |"
             for stage in stages:

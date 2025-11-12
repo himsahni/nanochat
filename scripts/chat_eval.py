@@ -248,7 +248,7 @@ if __name__ == "__main__":
             centered_mean += centered_acc
         chatcore_metric = centered_mean / len(results)
         chatcore_metric_dict = {"ChatCORE metric": chatcore_metric}
-    section_name = f"Chat evaluation {args.source}" + (f"{args.model_tag}" if args.model_tag else "")
+    section_name = f"Chat evaluation {args.source} " + (f"{args.model_tag}" if args.model_tag else "")
     get_report().log(section=section_name, data=[
         vars(args), # CLI args
         results,
