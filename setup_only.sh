@@ -36,16 +36,3 @@ fi
 # directory in the base dir. This command clears it out and writes a header section
 # with a bunch of system info and a timestamp that marks the start of the run.
 python -m nanochat.report reset
-
-# Download the entire dataset at once.
-python -m nanochat.dataset -n 248
-
-# -----------------------------------------------------------------------------
-# Download the eval_bundle from s3 to evaluate CORE metric during training (~162MB)
-EVAL_BUNDLE_URL=https://karpathy-public.s3.us-west-2.amazonaws.com/eval_bundle.zip
-if [ ! -d "$NANOCHAT_BASE_DIR/eval_bundle" ]; then
-    curl -L -o eval_bundle.zip $EVAL_BUNDLE_URL
-    unzip -q eval_bundle.zip
-    rm eval_bundle.zip
-    mv eval_bundle $NANOCHAT_BASE_DIR
-fi

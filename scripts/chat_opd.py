@@ -71,6 +71,7 @@ teacher_model, tokenizer, teacher_meta = load_model(teacher_source, device, phas
 teacher_model.requires_grad_(False)  # freeze the teacher
 model, _, meta = load_model(student_source, device, phase="eval", model_tag=student_model_tag)
 engine = Engine(model, tokenizer) # for sampling rollouts
+vocab_size = tokenizer.get_vocab_size()
 
 # -----------------------------------------------------------------------------
 # Rollout / sampling generator loop that yields batches of examples for training
@@ -263,19 +264,22 @@ for step in range(num_steps):
             targets = targets_all[b0:b1]
             rewards = rewards_all[b0:b1]
             advantages = advantages_all[b0:b1]
-            # Calculate log probabilities. Note that the loss calculates NLL = -logp, so we negate
+            # Calculate log probabilities. 
             with autocast_ctx:
-                logp = -model(inputs, targets, loss_reduction='none').view_as(inputs) # (B, T)
+                logits = model(inputs, None, loss_reduction='none').view(*inputs.shape, vocab_size) # (B, T, V)
+                logp = torch.nn.functional.log_softmax(logits, dim=-1)
+                probs = torch.nn.functional.softmax(logits, dim=-1)
             # also get logprobs from the teacher model
             with torch.no_grad(), autocast_ctx:
-                teacher_logp = -teacher_model(inputs, targets, loss_reduction='none').view_as(inputs) # (B, T)
+                teacher_logits = teacher_model(inputs, None, loss_reduction='none').view(*inputs.shape, vocab_size) # (B, T, V)
+                teacher_logp = torch.nn.functional.log_softmax(teacher_logits, dim=-1)
             # Instead of PG objective, we calculate reverse-KL to teacher model
             valid_mask = targets != -1  # (B, T) 
-            adv = (logp[valid_mask] - teacher_logp[valid_mask]).detach()
-            opd_obj = (logp[valid_mask] * adv).sum()
+            adv = (logp[valid_mask] - teacher_logp[valid_mask].detach())
+            opd_obj = (probs[valid_mask] * adv).sum()
             # normalize by the number of valid tokens, vocab_size, number of passes, and examples_per_rank
             num_valid = valid_mask.sum().clamp(min=1)
-            opd_obj = opd_obj / (num_valid * num_passes * examples_per_rank)
+            opd_obj = opd_obj / (num_valid * num_passes * examples_per_rank * vocab_size)
             # We wish to minimize the reverse-KL directly.
             loss = opd_obj
             loss.backward()
